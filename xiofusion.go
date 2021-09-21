@@ -12,6 +12,33 @@ var (
 	quatIdentity         = quat.Number{1, 0, 0, 0}
 )
 
+// NewFusionAHRS instances a AHRS system with a IMU+heading sensor.
+// Subsequent calls to Update read from IMU.
+func NewFusionAHRS(gain float64, imuWithMagnetometer IMUHeading) *FusionAHRS {
+	f := NewFusionARS(gain, imuWithMagnetometer)
+	f.ahrs = imuWithMagnetometer
+	return f
+}
+
+// NewFusionAHRS instances a AHRS system with only IMU sensor readings.
+// Calls to Update read from IMU.
+func NewFusionARS(gain float64, imu IMU) *FusionAHRS {
+	if imu == nil {
+		panic("nil IMU in NewFusionAHRS")
+	}
+	f := &FusionAHRS{
+		gain:       gain,
+		maxMFS:     1e200,
+		attitude:   quatIdentity,
+		rampedGain: initialGain,
+		ars:        imu,
+	}
+	if !(gain > 0) {
+		f.gain = initialGain
+	}
+	return f
+}
+
 // Taken shamelessly from xioTechnologies/Fusion on github.
 type FusionAHRS struct {
 	gain float64
@@ -20,27 +47,26 @@ type FusionAHRS struct {
 	attitude       quat.Number
 	acceleration   r3.Vec
 	rampedGain     float64
-	zeroYawPending bool
-	ahrs           AHRS
+	zeroYawPending bool // TODO implement
+	ahrs           IMUHeading
+	ars            IMU
 }
 
-func (f *FusionAHRS) Init(gain float64, ahrs AHRS) error {
-	f.gain = gain
-	f.maxMFS = 1e200
-	f.attitude = quatIdentity
-	f.rampedGain = initialGain
-	f.ahrs = ahrs
-	return nil
-}
 func (f *FusionAHRS) getVectors() (accel, rot, magnet r3.Vec) {
-	ax, ay, az := f.ahrs.Acceleration()
-	gx, gy, gz := f.ahrs.AngularVelocity()
+	ax, ay, az := f.ars.Acceleration()
+	gx, gy, gz := f.ars.AngularVelocity()
+
+	accel = scaledVecFromInt(1e-6, ax, ay, az)
+	rot = scaledVecFromInt(1e-6, gx, gy, gz)
+	if f.ahrs == nil {
+		magnet = r3.Vec{1, 0, 0} // prevent singularities
+		return
+	}
 	mx, my, mz := f.ahrs.North()
-	accel = scaledVecFromInt(1./1000., ax, ay, az)
-	rot = scaledVecFromInt(1./1000., gx, gy, gz)
 	magnet = scaledVecFromInt(1, mx, my, mz)
 	return accel, rot, magnet
 }
+
 func (f *FusionAHRS) SetGain(gain float64) { f.gain = gain }
 
 func (f *FusionAHRS) SetMagneticField(min, max float64) {
@@ -70,7 +96,7 @@ func (f *FusionAHRS) Update(samplePeriod float64) {
 
 	// Abandon magnetometer feedback calculation if magnetometer measurement invalid
 	mfs = r3.Norm2(magnet)
-	if mfs < f.minMFS || mfs > f.maxMFS {
+	if f.ahrs == nil || mfs < f.minMFS || mfs > f.maxMFS {
 		goto ENDCALC
 	}
 
