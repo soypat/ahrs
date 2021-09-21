@@ -154,6 +154,10 @@ func (f *FusionAHRS) GetQuaternion() quat.Number {
 	return f.attitude
 }
 
+// func (f *FusionAHRS) GetEulerAngles() r3.Vec {
+// 	return quatToEuler(f.attitude)
+// }
+
 func (f *FusionAHRS) GetLinearAcceleration() r3.Vec {
 	return f.acceleration
 }
