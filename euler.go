@@ -7,18 +7,15 @@ import (
 	"gonum.org/v1/gonum/spatial/r3"
 )
 
-// ZYX sequence in radians
 type EulerAngles struct {
-	Q float64
-	R float64
-	S float64
+	Q     float64
+	R     float64
+	S     float64
+	Order RotationOrder
 }
 
-type EulerZYX struct {
-	EulerAngles
-}
-
-func ZYXFromQuaternion(q quat.Number) (att EulerZYX) {
+// ZYX sequence in radians
+func ZYXFromQuaternion(q quat.Number) (att EulerAngles) {
 	qwqwm2 := q.Real*q.Real - 0.5
 	att.Q = math.Atan2(q.Jmag*q.Kmag-q.Real*q.Imag, qwqwm2+q.Kmag*q.Kmag)
 	att.R = -math.Asin(2 * (q.Imag*q.Kmag + q.Real*q.Jmag))
