@@ -1,6 +1,8 @@
 package ahrs
 
 import (
+	"math"
+
 	"gonum.org/v1/gonum/num/quat"
 	"gonum.org/v1/gonum/spatial/r3"
 )
@@ -9,24 +11,24 @@ var (
 	initialGain = 10.0
 	// Seconds
 	initializationPeriod = 3.
-	quatIdentity         = quat.Number{1, 0, 0, 0}
+	quatIdentity         = quat.Number{Real: 1}
 )
 
-// NewFusionAHRS instances a AHRS system with a IMU+heading sensor.
+// NewXioAHRS instances a AHRS system with a IMU+heading sensor.
 // Subsequent calls to Update read from IMU.
-func NewFusionAHRS(gain float64, imuWithMagnetometer IMUHeading) *FusionAHRS {
-	f := NewFusionARS(gain, imuWithMagnetometer)
+func NewXioAHRS(gain float64, imuWithMagnetometer IMUHeading) *XioAHRS {
+	f := NewXioARS(gain, imuWithMagnetometer)
 	f.ahrs = imuWithMagnetometer
 	return f
 }
 
 // NewFusionAHRS instances a AHRS system with only IMU sensor readings.
 // Calls to Update read from IMU.
-func NewFusionARS(gain float64, imu IMU) *FusionAHRS {
+func NewXioARS(gain float64, imu IMU) *XioAHRS {
 	if imu == nil {
 		panic("nil IMU in NewFusionAHRS")
 	}
-	f := &FusionAHRS{
+	f := &XioAHRS{
 		gain:       gain,
 		maxMFS:     1e200,
 		attitude:   quatIdentity,
@@ -40,26 +42,25 @@ func NewFusionARS(gain float64, imu IMU) *FusionAHRS {
 }
 
 // Taken shamelessly from xioTechnologies/Fusion on github.
-type FusionAHRS struct {
+type XioAHRS struct {
 	gain float64
 	// Magnetic field limits (squared)
 	maxMFS, minMFS float64
 	attitude       quat.Number
 	acceleration   r3.Vec
 	rampedGain     float64
-	zeroYawPending bool // TODO implement
 	ahrs           IMUHeading
 	ars            IMU
 }
 
-func (f *FusionAHRS) getVectors() (accel, rot, magnet r3.Vec) {
+func (f *XioAHRS) getVectors() (accel, rot, magnet r3.Vec) {
 	ax, ay, az := f.ars.Acceleration()
 	gx, gy, gz := f.ars.AngularVelocity()
 
 	accel = scaledVecFromInt(1e-6, ax, ay, az)
 	rot = scaledVecFromInt(1e-6, gx, gy, gz)
 	if f.ahrs == nil {
-		magnet = r3.Vec{1, 0, 0} // prevent singularities
+		magnet = r3.Vec{X: 1} // prevent singularities
 		return
 	}
 	mx, my, mz := f.ahrs.North()
@@ -67,14 +68,15 @@ func (f *FusionAHRS) getVectors() (accel, rot, magnet r3.Vec) {
 	return accel, rot, magnet
 }
 
-func (f *FusionAHRS) SetGain(gain float64) { f.gain = gain }
+func (f *XioAHRS) SetGain(gain float64) { f.gain = gain }
 
-func (f *FusionAHRS) SetMagneticField(min, max float64) {
+func (f *XioAHRS) SetMagneticField(min, max float64) {
 	f.minMFS = min * min
 	f.maxMFS = max * max
 }
 
-func (f *FusionAHRS) Update(samplePeriod float64) {
+// Update updates the internal quaternion
+func (f *XioAHRS) Update(samplePeriod float64) {
 	q := f.attitude
 	var accel, gyro, magnet r3.Vec = f.getVectors()
 
@@ -136,6 +138,24 @@ ENDCALC:
 		Z: 2.0 * (q.Real*q.Real - 0.5 + q.Kmag*q.Kmag),
 	}
 	f.acceleration = r3.Sub(accel, gravity)
+
+	// no magnetometer correction discards change in Yaw.
+	if f.ahrs == nil {
+		f.setYaw(0)
+	}
+}
+
+func (f *XioAHRS) setYaw(yaw float64) {
+	q := f.GetQuaternion()
+	// Calculate inverse yaw
+	iyaw := math.Atan2(q.Imag*q.Jmag+q.Real*q.Kmag, q.Real*q.Real-.5+q.Imag*q.Imag) // Euler angle of conjugate
+	//half inverse yaw minus offset?
+	hiymo := 0.5 * (iyaw - yaw)
+	iyawQuat := quat.Number{
+		Real: math.Cos(hiymo),
+		Kmag: -math.Sin(hiymo),
+	}
+	f.attitude = quat.Mul(iyawQuat, f.attitude)
 }
 
 func scaledVecFromInt(scale float64, x, y, z int32) (result r3.Vec) {
@@ -150,7 +170,7 @@ func r3Normalize(v r3.Vec) (normalized r3.Vec) {
 	return normalized
 }
 
-func (f *FusionAHRS) GetQuaternion() quat.Number {
+func (f *XioAHRS) GetQuaternion() quat.Number {
 	return f.attitude
 }
 
@@ -158,6 +178,6 @@ func (f *FusionAHRS) GetQuaternion() quat.Number {
 // 	return quatToEuler(f.attitude)
 // }
 
-func (f *FusionAHRS) GetLinearAcceleration() r3.Vec {
+func (f *XioAHRS) GetLinearAcceleration() r3.Vec {
 	return f.acceleration
 }
