@@ -40,7 +40,7 @@ func (r *RotationMatrix) MulVec(v r3.Vec) (result r3.Vec) {
 	return result
 }
 
-// Mul Calculates A*B
+// Mul Calculates A*B and returns the result.
 func (A *RotationMatrix) Mul(B *RotationMatrix) (result RotationMatrix) {
 	result.xx = A.xx*B.xx + A.xy*B.yx + A.xz*B.zx
 	result.xy = A.xx*B.xy + A.xy*B.yy + A.xz*B.zy
@@ -54,18 +54,46 @@ func (A *RotationMatrix) Mul(B *RotationMatrix) (result RotationMatrix) {
 	return result
 }
 
+// RotationOrder represents a convention for rotating a frame.
+// This package implements intrinsic Tait-Bryan rotations at the time of writing this.
 type RotationOrder int
 
 const (
 	orderUndefined RotationOrder = iota
+	// Tait-Bryan XYZ intrinsic rotation
 	OrderXYZ
+	// Tait-Bryan YXZ intrinsic rotation
 	OrderYXZ
+	// Tait-Bryan ZXY intrinsic rotation
 	OrderZXY
+	// Tait-Bryan ZYX intrinsic rotation
 	OrderZYX
+	// Tait-Bryan YZX intrinsic rotation
 	OrderYZX
+	// Tait-Bryan XZY intrinsic rotation
 	OrderXZY
 	orderLen
 )
+
+func (r RotationOrder) String() (order string) {
+	switch r {
+	case OrderXYZ:
+		order = "XYZ"
+	case OrderYXZ:
+		order = "YXZ"
+	case OrderXZY:
+		order = "XZY"
+	case OrderYZX:
+		order = "YZX"
+	case OrderZXY:
+		order = "ZXY"
+	case OrderZYX:
+		order = "ZYX"
+	default:
+		order = "undefined rotation order"
+	}
+	return order
+}
 
 // Euler angle calculations from
 // https://github.com/mrdoob/three.js/blob/8ff5d832eedfd7bc698301febb60920173770899/src/math/Euler.js
@@ -137,6 +165,8 @@ func (r *RotationMatrix) TaitBryan(order RotationOrder) (taitBryanAngles EulerAn
 			taitBryanAngles.R = 0
 		}
 
+	case orderUndefined:
+		fallthrough
 	default:
 		panic("undefined or unimplemented rotation order")
 	}
@@ -148,6 +178,9 @@ func (r *RotationMatrix) TaitBryan(order RotationOrder) (taitBryanAngles EulerAn
 	return taitBryanAngles
 }
 
+// clamp returns v if contained in [min,max].
+// Else it returns min if v is less than min or max if v is
+// greater than max. max must be greater than min.
 func clamp(v, min, max float64) float64 {
 	return math.Max(min, math.Min(max, v))
 }
