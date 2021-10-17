@@ -7,12 +7,13 @@ import (
 	"gonum.org/v1/gonum/spatial/r3"
 )
 
-var (
+const (
 	initialGain = 10.0
 	// Seconds
 	initializationPeriod = 3.
-	quatIdentity         = quat.Number{Real: 1}
 )
+
+var quatIdentity = quat.Number{Real: 1}
 
 // NewXioAHRS instances a AHRS system with a IMU+heading sensor.
 // Subsequent calls to Update read from IMU.
