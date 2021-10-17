@@ -127,7 +127,7 @@ ENDCALC:
 
 	// apply feedback to gyro
 	halfGyro = r3.Add(halfGyro, r3.Scale(feedbackGain, hfe))
-	f.attitude = quat.Add(f.attitude, MulQuatVec(f.attitude, r3.Scale(samplePeriod, halfGyro)))
+	f.attitude = quat.Add(f.attitude, mulQuatVec(f.attitude, r3.Scale(samplePeriod, halfGyro)))
 
 	// Normalize quaternion
 	f.attitude = NormalizeQuaternion(f.attitude)

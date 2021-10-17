@@ -1,6 +1,8 @@
 package ahrs
 
 import (
+	"unsafe"
+
 	"github.com/go-gl/mathgl/mgl32"
 )
 
@@ -9,7 +11,7 @@ const (
 	pi2 = pi * pi
 )
 
-func MulQuatVec32(q mgl32.Quat, v mgl32.Vec3) (result mgl32.Quat) {
+func mulQuatVec32(q mgl32.Quat, v mgl32.Vec3) (result mgl32.Quat) {
 	result.W = -q.X()*v[0] - q.Y()*v[1] - q.Z()*v[2]
 	result.V[0] = q.W*v[0] + q.Y()*v[2] - q.Z()*v[1]
 	result.V[1] = q.W*v[1] - q.X()*v[2] + q.Z()*v[0]
@@ -17,7 +19,7 @@ func MulQuatVec32(q mgl32.Quat, v mgl32.Vec3) (result mgl32.Quat) {
 	return result
 }
 
-func atan2_32(x, y float32) float32 {
+func atan2_32(y, x float32) float32 {
 	a := min_32(abs_32(x), abs_32(y)) / max_32(abs_32(x), abs_32(y))
 	s := a * a
 	r := ((-0.0464964749*s+0.15931422)*s-0.327622764)*s*a + a
@@ -38,7 +40,7 @@ func atan2_32(x, y float32) float32 {
 func sin_32(x float32) float32 {
 	if x < 0 {
 		x = abs_32(x)
-		return 16 * x * (pi - x) / (5*pi2 - 4*x*(pi-x))
+		return -16 * x * (pi - x) / (5*pi2 - 4*x*(pi-x))
 	}
 	return 16 * x * (pi - x) / (5*pi2 - 4*x*(pi-x))
 }
@@ -51,10 +53,7 @@ func cos_32(x float32) float32 {
 }
 
 func abs_32(a float32) float32 {
-	if a < 0 {
-		return -a
-	}
-	return a
+	return float32frombits(float32bits(a) &^ (1 << 31))
 }
 
 func max_32(a, b float32) float32 {
@@ -77,3 +76,14 @@ func scaledVec32FromInt(scale float32, x, y, z int32) (result mgl32.Vec3) {
 	result[2] = scale * float32(z)
 	return result
 }
+
+// float32bits returns the IEEE 754 binary representation of f,
+// with the sign bit of f and the result in the same bit position.
+// float32bits(Float32frombits(x)) == x.
+func float32bits(f float32) uint32 { return *(*uint32)(unsafe.Pointer(&f)) }
+
+// float32frombits returns the floating-point number corresponding
+// to the IEEE 754 binary representation b, with the sign bit of b
+// and the result in the same bit position.
+// float32frombits(Float32bits(x)) == x.
+func float32frombits(b uint32) float32 { return *(*float32)(unsafe.Pointer(&b)) }
