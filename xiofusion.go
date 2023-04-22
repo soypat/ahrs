@@ -95,7 +95,7 @@ func (f *XioAHRS) Update(samplePeriod float64) {
 		Y: q.Real*q.Imag + q.Jmag*q.Kmag,
 		Z: q.Real*q.Real - .5 + q.Kmag*q.Kmag,
 	} // equal to 3rd column of rotation matrix representation scaled by 0.5
-	hfe = r3.Cross(r3Normalize(accel), gd2)
+	hfe = r3.Cross(r3.Unit(accel), gd2)
 
 	// Abandon magnetometer feedback calculation if magnetometer measurement invalid
 	mfs = r3.Norm2(magnet)
@@ -112,7 +112,7 @@ func (f *XioAHRS) Update(samplePeriod float64) {
 
 	// calculate magnetometer feedback error
 	aux = r3.Cross(accel, magnet)
-	hfe = r3.Add(hfe, r3.Cross(r3Normalize(aux), halfWest))
+	hfe = r3.Add(hfe, r3.Cross(r3.Unit(aux), halfWest))
 ENDCALC:
 
 	if f.gain == 0 {
@@ -164,11 +164,6 @@ func scaledVecFromInt(scale float64, x, y, z int32) (result r3.Vec) {
 	result.Y = scale * float64(y)
 	result.Z = scale * float64(z)
 	return result
-}
-
-func r3Normalize(v r3.Vec) (normalized r3.Vec) {
-	normalized = v.Scale(1 / r3.Norm(v))
-	return normalized
 }
 
 func (f *XioAHRS) GetQuaternion() quat.Number {
